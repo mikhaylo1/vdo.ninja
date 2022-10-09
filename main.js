@@ -43,7 +43,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			getById("mainmenu").style.opacity = 1;
 		}
 	}
-	if (location.hostname !== "vdo.ninja" && location.hostname !== "backup.vdo.ninja" && location.hostname !== "obs.ninja") {
+	if (location.hostname !== "vdo.ninja" && location.hostname !== "backup.vdo.ninja" && location.hostname !== "proxy.vdo.ninja" && location.hostname !== "obs.ninja") {
 		if (location.hostname === "rtc.ninja"){
 			try {
 				if (session.label === false) {
@@ -100,6 +100,9 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.cleanViewer = true;
 	}
 	
+	if (urlParams.has('previewmode')){
+		session.switchMode = true;
+	}
 	
 	if (urlParams.has('director') || urlParams.has('dir')) {
 		session.director = urlParams.get('director') || urlParams.get('dir') || true;
@@ -127,21 +130,25 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			setStorage("redirect", "", 0);
 			session.sticky = true;
 		} else if (getStorage("settings") != "") {
-			
-			 if (!(session.cleanOutput)){
+			var URLGOTO = getStorage("settings");
+			if (URLGOTO === window.location.href) {
+				// continue, as its already matched
+			} else if (!(session.cleanOutput)){
 				
-				window.focus();
-				session.sticky = confirm("Would you like to load your previous session?\n\nThis will redirect you to: "+getStorage("settings"));
+				window.focus(); 
+				document.body.classList.remove("hidden");
+				
+				session.sticky = await confirmAlt("Would you like to load your previous session?\n\nThis will redirect you to:\n\n"+URLGOTO, true);
 				if (!session.sticky) {
 					setStorage("settings", "", 0);
 					log("deleting cookie as user said no");
 				} else {
-					var cookieSettings = decodeURI(getStorage("settings"));
+					var cookieSettings = decodeURI(URLGOTO);
 					setStorage("redirect", "yes", 1);
 					window.location.replace(cookieSettings);
 				}
 			} else {
-				var cookieSettings = decodeURI(getStorage("settings"));
+				var cookieSettings = decodeURI(URLGOTO);
 				setStorage("redirect", "yes", 1);
 				window.location.replace(cookieSettings);
 			}
@@ -168,7 +175,11 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.safemode = true; // load defa
 	} else {
 		session.store = {}; 
-		loadSettings();
+		try {
+			loadSettings();
+		} catch(e){
+			errorlog(e);
+		}
 	}
 	
 	if (navigator.userAgent.toLowerCase().indexOf(' electron/') > -1) {
@@ -276,6 +287,13 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if (urlParams.has('pushloudness') || urlParams.has('getloudness')) { // this sets the loudness IFRAME API output, if available.
 		session.pushLoudness = true;
 	}
+	
+	if (urlParams.has('pushfaces') || urlParams.has('getfaces')) {
+		session.grabFaceData = true;
+		setTimeout(function(){ // give the app some time to load
+			getFaces();
+		}, 2000);
+	}
 
 	if (urlParams.has('notmobile')){
 		session.mobile = false;
@@ -374,6 +392,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	if (urlParams.has('meshcast')) {
 		session.meshcast = urlParams.get('meshcast') || "any";
+		meshcast(true);
 	}
 	
 	
@@ -436,7 +455,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	session.slotmode = false; // temporary; remove in the future TODO: ## -----------------------
 	if (urlParams.has('slotmode')){
-		session.slotmode = true;
+		session.slotmode = parseInt(urlParams.get('slotmode')) || 1;
 	}
 	
 
@@ -530,6 +549,11 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	if (urlParams.has('nohangupbutton') || urlParams.has('nohub')){
 		getById("hangupbutton").style.display = "none";
+		session.hangupbutton = false;
+	}
+	
+	if (urlParams.has('hangupbutton') || urlParams.has('hub')){
+		session.hangupbutton = true;
 	}
 	
 	if (urlParams.has('socialstream')){
@@ -650,10 +674,6 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if (urlParams.has('hidesolo') || urlParams.has('hs')){
 		session.hidesololinks=true;
 	}
-
-	if (urlParams.has('ssb') || urlParams.has('screensharebutton')) {
-		session.screensharebutton = true;
-	}
 	
 	if (urlParams.has('mute') || urlParams.has('muted') || urlParams.has('m')) {
 		session.muted = true;
@@ -669,12 +689,15 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	if (urlParams.has('layout')) {
 		try {
-			session.layout = JSON.parse(decodeURIComponent(urlParams.get('layout'))) || JSON.parse(urlParams.get('layout')) || false;
+			session.layout = JSON.parse(decodeURIComponent(urlParams.get('layout'))) || JSON.parse(urlParams.get('layout')) || {};
 		} catch(e){
-			session.layout = null
+			try {
+				session.layout = JSON.parse(urlParams.get('layout')) || {};
+			} catch(e){
+				session.layout = {};
+			}
 		}
 	}
-
 
 	if (urlParams.has('deaf') || urlParams.has('deafen')) {
 		session.directorSpeakerMuted=true; // false == true in this case.
@@ -691,7 +714,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		getById("blindAllGuests").classList.remove("hidden");
 	}
 	
-	if (urlParams.has('dpi') || urlParams.has('dpr')) {
+	if (urlParams.has('dpi') || urlParams.has('dpr') || urlParams.has('sharper') || urlParams.has('sharpen')) {
 		session.devicePixelRatio = urlParams.get('dpi') || urlParams.get('dpr') || 2.0;
 		session.devicePixelRatio = parseFloat(session.devicePixelRatio);
 	} //else if (window.devicePixelRatio && window.devicePixelRatio!==1){ 
@@ -785,6 +808,20 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 				session.forceAspectRatio = 1.0;
 			} else {
 				session.forceAspectRatio = parseFloat(session.forceAspectRatio) || false;
+			}
+		}
+	}
+	if (urlParams.has('screenshareaspectratio') || urlParams.has('ssar')) {  // capture aspect ratio
+		session.forceScreenShareAspectRatio = urlParams.get('screenshareaspectratio') || urlParams.get('ssar') || false;
+		if (session.forceScreenShareAspectRatio){
+			if ((session.forceScreenShareAspectRatio == 'portrait') || (session.forceScreenShareAspectRatio == 'vertical')){
+				session.forceScreenShareAspectRatio = 9.0/16.0;
+			} else if (session.forceScreenShareAspectRatio == 'landscape'){
+				session.forceScreenShareAspectRatio = 16.0/9.0;
+			}  else if (session.forceScreenShareAspectRatio == 'square'){
+				session.forceScreenShareAspectRatio = 1.0;
+			} else {
+				session.forceScreenShareAspectRatio = parseFloat(session.forceScreenShareAspectRatio) || false;
 			}
 		}
 	}
@@ -895,6 +932,16 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		} else {
 			session.scene = (parseInt(session.scene) || 0) + "";
 		}
+	}
+	
+	if (urlParams.has('solo')){
+		if (session.scene===false){
+			session.scene = "0";
+		}
+		session.solo = true;
+	}
+	
+	if (session.scene!==false){
 		session.disableWebAudio = true;
 		session.audioEffects = false;
 		session.audioMeterGuest = false; 
@@ -1119,7 +1166,10 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if (urlParams.has('salt') && urlParams.get('salt')){
 		session.salt = urlParams.get('salt');
 	}
-
+	
+	if (urlParams.has('showconnections')){
+		session.showConnections = true; // shows remote guest connections as a stat
+	}
 
 	if (urlParams.has('hash') || urlParams.has('crc') || urlParams.has('check')) { // could be brute forced in theory, so not as safe as just not using a hash check.
 		session.taintedSession = null; // waiting to see if valid or not.
@@ -1327,6 +1377,10 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.autoGainControl = false;
 		session.noiseSuppression = false;
 	}
+	
+	if (Firefox && !session.stereo || (session.stereo === 3)){
+		session.mono = true; // this will set the SDP to mono if firefox
+	}
 
 	if (urlParams.has('mono')) {
 		session.mono = true;
@@ -1334,7 +1388,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			session.stereo = 3;
 			session.audiobitrate = 128;
 		} else if (session.stereo == 5) {
-			session.stereo = 3;
+			session.stereo = 3; // stereo out only
 			session.audiobitrate = 128;
 		} else if (session.stereo == 2) {
 			session.stereo = 0;
@@ -1342,7 +1396,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		}
 	}
 
-	if (urlParams.has("channelcount") || urlParams.has("ac") || urlParams.has("inputchannels")) {
+	if (urlParams.has("channelcount") || urlParams.has("ac") || urlParams.has("inputchannels")) { // if updates to this, see also function toggleMonoStereoMic()
 		session.audioInputChannels = urlParams.get('channelcount') || urlParams.get('ac') || urlParams.get('inputchannels') || 0;
 		session.audioInputChannels = parseInt(session.audioInputChannels);
 		if (!session.audioInputChannels) {
@@ -1350,6 +1404,12 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		}
 	} else if (urlParams.has("monomic")){
 		session.audioInputChannels = 1;
+	}
+	
+	if ((session.stereo === 5) && !session.audioInputChannels){ // allow the guest to set their mic to mono.
+		document.querySelectorAll(".gear_microphone").forEach(ele=>{
+			ele.classList.remove("hidden");
+		});
 	}
 
 
@@ -1583,11 +1643,12 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	}
 	
 	if (urlParams.has('ruler') || urlParams.has('grid') || urlParams.has('thirds')) {
-		session.ruleOfThirds=true;
 		session.fullscreen = true;
 		if (!session.manual){
 			session.manual = false;
 		}
+		session.ruleOfThirds = urlParams.get('ruler') || urlParams.get('grid') ||  urlParams.get('thirds') || "./media/thirds.svg";
+		session.ruleOfThirds = decodeURIComponent(session.ruleOfThirds);
 	}
 	
 	if (urlParams.has('smallshare')){
@@ -1596,6 +1657,8 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	if (urlParams.has('proxy')) { // routes the wss traffic via an alternative network path. Not
 		session.proxy=true; // only works if session.wss is set to false
+	} else if (location.hostname === "proxy.vdo.ninja"){
+		session.proxy=true;
 	}
 
 	if (urlParams.has('nopreview') || urlParams.has('np')) {
@@ -2169,6 +2232,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.alpha = true;
 	}
 	
+	
 	if (urlParams.has('debug')){
 		session.debug=true;
 		debugStart();
@@ -2221,6 +2285,18 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		if (session.maxptime > 300) {
 			session.maxptime = 300;
 		}
+	}
+
+	if (urlParams.has('contenthint') || urlParams.has('contenttype') || urlParams.has('content') || urlParams.has('hint')) {
+		session.contentHint = urlParams.get('contenthint') || urlParams.get('contenttype') || urlParams.get('content') || urlParams.get('hint') || "detail";
+	}
+	
+	if (urlParams.has('audiocontenthint') || urlParams.has('audiocontenttype') || urlParams.has('audiocontent') || urlParams.has('audiohint')) {
+		session.audioContentHint = urlParams.get('audiocontenthint') || urlParams.get('audiocontenttype') || urlParams.get('audiocontent') || urlParams.get('audiohint') || "music";
+	}
+	
+	if (urlParams.has('screensharecontenthint') || urlParams.has('sscontenthint')  || urlParams.has('screensharecontenttype') || urlParams.has('sscontent') || urlParams.has('sshint')) {
+		session.screenshareContentHint = urlParams.get('screensharecontenthint') || urlParams.get('sscontenthint') || urlParams.get('screensharecontenttype') || urlParams.get('sscontent') || urlParams.get('sshint') || "detail";
 	}
 
 
@@ -2295,6 +2371,10 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		}
 	}
 	
+	if (urlParams.has('sharperscreen')) { // sets scale to 100 for inbound screenshares only
+		session.sharperScreen = true;
+	}
+	
 	if (urlParams.has('mcscale') || urlParams.has('meshcastscale')) {
 		session.meshcastScale = parseFloat(urlParams.get('mcscale')) || parseFloat(urlParams.get('meshcastscale')) || 100;
 	}
@@ -2349,6 +2429,15 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if (urlParams.has('entrymsg') || urlParams.has('welcome')) {
 		session.welcomeMessage = urlParams.get('entrymsg') || urlParams.get('welcome');
 		session.welcomeMessage = decodeURIComponent(session.welcomeMessage);
+	}
+	
+	if (urlParams.has('welcomeimage') || urlParams.has('welcomeimg')) {
+		session.welcomeImage = urlParams.get('welcomeimage') || urlParams.get('welcomeimg');
+		session.welcomeImage = decodeURIComponent(session.welcomeImage);
+	}
+
+	if (urlParams.has('mixminus')){
+		session.mixMinus = true;
 	}
 
 	if (urlParams.has('videobitrate') || urlParams.has('bitrate') || urlParams.has('vb')) {
@@ -2534,7 +2623,12 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.cleanDirector = true;
 	}
 
+	if (urlParams.has('hidetranslate')) {
+		getById("translateButton").style.display = "none";
+	}
+
 	if (session.cleanOutput){
+		session.screensharebutton = false;
 		getById("translateButton").style.display = "none";
 		getById("credits").style.display = "none";
 		getById("header").style.display = "none";
@@ -2555,6 +2649,18 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		document.head.appendChild(styleTmp);
 	}
 	getById("credits").innerHTML = "Version: " + session.version + " - " + getById("credits").innerHTML;
+	
+	if (urlParams.has('ssb') || urlParams.has('screensharebutton')) {
+		session.screensharebutton = true;
+	}
+	
+	if (urlParams.has('hideheader') || urlParams.has('noheader') || urlParams.has('hh')) { // needs to happen the room and permaid applications
+		getById("header").style.display = "none";
+		getById("header").style.opacity = 0;
+	} else if (urlParams.has('showheader')) { // needs to happen the room and permaid applications
+		getById("header").style.display = "inherit";
+		getById("header").style.opacity = 1;
+	}
 	
 	if (urlParams.has('minidirector')) {
 		try {
@@ -2803,7 +2909,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.audioEffects = true;
 		session.audioMeterGuest = true; 
 		session.minipreview = 2;
-		if (session.activeSpeaker==1){
+		if ((session.activeSpeaker==1) || (session.activeSpeaker==3)){
 			session.animatedMoves = false;
 		}
 		session.fadein=true;
@@ -2832,7 +2938,11 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			session.audioMeterGuest = true;
 			setInterval(function(){activeSpeaker(false);},100);
 		}
-		
+	}
+	
+	if (urlParams.has('noisegatesettings')){
+		 session.noisegateSettings = urlParams.get('noisegatesettings');
+		 session.noisegateSettings = session.noisegateSettings.split(",");
 	}
 	
 	if (urlParams.has('fadein')) {
@@ -2970,7 +3080,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if (urlParams.has('stun')) {
 		var stunstring = urlParams.get('stun');
 		stunstring = stunstring.split(";");
-		if (stunstring !== "false") { // false disables the TURN server. Useful for debuggin
+		if (stunstring[0] !== "false") { // false disables the TURN server. Useful for debuggin
 			var stun = {};
 			if (stunstring.length==3){
 				stun.username = stunstring[0]; // myusername
@@ -3131,13 +3241,14 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			}
 		}
 	}
-	
-	
 
 	if (urlParams.has('wss')) {
 		session.customWSS = true;
 		if (urlParams.get('wss')) {
-			session.wss = "wss://" + urlParams.get('wss');
+			session.wss = urlParams.get('wss');
+			if (!session.wss.startsWith("wss://")){
+				session.wss = "wss://" + session.wss;
+			}
 		}
 	}
 	
@@ -3148,8 +3259,10 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	
 	if (urlParams.has('osc') || urlParams.has('api')) {
 		if (urlParams.get('osc') || urlParams.get('api')) {
-			session.api = urlParams.get('osc') || urlParams.get('api');
-			setTimeout(function(){oscClient();},1000);
+			session.api = urlParams.get('osc') || urlParams.get('api') || false;
+			if (session.api){
+				setTimeout(function(){oscClient();},1000);
+			}
 		}
 	}
 
@@ -3234,13 +3347,22 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		session.roomid = sanitizeRoomName(roomid);
 	}
 	
-	if ((session.permaid===false) && (session.roomid===false) && (session.view===false) && (session.effects===false) && (session.director===false)){
-		session.effects = null;
+	if ((session.permaid===false) && (session.roomid===false) && (session.view===false) && (session.effect===false) && (session.director===false)){
+		session.effect = null;
 	}
 	
 	if (urlParams.has('effects') || urlParams.has('effect')) {
-		session.effects = urlParams.get('effects') || urlParams.get('effect') || null;
+		session.effect = urlParams.get('effects') || urlParams.get('effect') || null;
 	}
+	if (window.FaceDetector !== undefined){
+		document.querySelectorAll(".facetracker").forEach(ele=>{
+			ele.disabled = null;
+			ele.removeAttribute("disabled");
+			ele.title = "Will slowly pan, tilt, and zoom in on the first face detected";
+		});
+		
+	}
+	
 	
 	if (urlParams.has('imagelist')){ // "&imagelist="+encodeURIComponent(JSON.stringify(["./media/bg_sample.webp", "./media/bg_sample2.webp"]))
 		var imageList = urlParams.get('imagelist'); // 
@@ -3258,19 +3380,19 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		}
 	}
 	
-	if (session.effects!==false){
-		if (session.effects === null){
+	if (session.effect!==false){
+		if (session.effect === null){
 			getById("effectsDiv").style.display = "block";
-			session.effects = "0";
-		} else if (session.effects === "0" || session.effects === "false" || session.effects === "off" || session.effects === 0){
-			session.effects = false;
+			session.effect = "0";
+		} else if (session.effect === "0" || session.effect === "false" || session.effect === "off" || session.effect === 0){
+			session.effect = false;
 			getById("effectSelector3").style.display = "none";
 			getById("effectsDiv3").style.display = "none";
 			getById("effectSelector").style.display = "none";
 			getById("effectsDiv").style.display = "none";
 		}
 		
-		if (session.effects === "5"){
+		if (session.effect === "5"){
 			
 			loadTFLITEImages();
 			
@@ -3283,6 +3405,8 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			session.effect = "3";
 		} else if (session.effect === "3"){
 			session.effectValue = 2;
+		}  else if (session.effect === "7"){
+			session.effectValue = 1;
 		}
 		// mirror == 2
 		// face == 1
@@ -3290,6 +3414,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		// green = 4
 		// image = 5
 	}
+	
 	
 	if (urlParams.has('effectvalue') || urlParams.has('ev')) {
 		session.effectValue = parseInt(urlParams.get('effectvalue')) || parseInt(urlParams.get('ev')) || 0;
@@ -3578,12 +3703,6 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		getById("header").style.opacity = 0;
 	}
 
-	if (urlParams.has('hideheader') || urlParams.has('noheader') || urlParams.has('hh')) { // needs to happen the room and permaid applications
-		getById("header").style.display = "none";
-		getById("header").style.opacity = 0;
-	}
-	
-	
 	
 	if (session.view) {
 		getById("main").className = "";
@@ -3601,7 +3720,11 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		};
 	}
 
-	if ((session.view) && (session.roomid === false)) {
+	if (urlParams.has('waitimage')){
+		session.waitImage = urlParams.get('waitimage') || false;
+	}
+	
+	if (((session.view) && (session.roomid === false)) || (session.waitImage && (session.scene!==false))) {
 		
 		getById("container-4").className = 'column columnfade';
 		getById("container-3").className = 'column columnfade';
@@ -3618,23 +3741,29 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 
 		getById("mainmenu").style.backgroundRepeat = "no-repeat";
 		getById("mainmenu").style.backgroundPosition = "bottom center";
-		getById("mainmenu").style.height = "100%";
+		getById("mainmenu").style.minHeight = "100%";
+		getById("mainmenu").style.minWidth = "100%";
 		getById("mainmenu").style.backgroundSize = "100px 100px";
 		getById("mainmenu").innerHTML = '';
 		getById("mainmenu").classList.remove("row");
-
-		var timeout = 5000;
+		getById("mainmenu").style.display = "block";
+		
 		if (urlParams.has('waittimeout')){
-			timeout = parseInt(urlParams.get('waittimeout')) || 0;
+			session.waitImageTimeout = parseInt(urlParams.get('waittimeout')) || 0;
 		}
-		setTimeout(function() {
+		session.waitImageTimeoutObject = setTimeout(function() {
+			session.waitImageTimeoutObject = true;
 			try {
 				if ((session.view)) {
 					if (document.getElementById("mainmenu")) {
-						if (urlParams.has('waitimage')){
+						if (session.waitImage){
 							getById("mainmenu").innerHTML += '<img id="retryimage"/>';
-							getById("retryimage").src = decodeURIComponent(urlParams.get('waitimage'));
+							getById("retryimage").src = decodeURIComponent(session.waitImage);
 							getById("retryimage").onerror = function(){this.style.display='none';};
+							
+							if (session.cover) {
+								getById("retryimage").style.objectFit = "cover";
+							} 
 							
 						} else if (!(session.cleanOutput)){
 							getById("mainmenu").innerHTML += '<div class="retry-spinner" id="retrySpinner"></div>';
@@ -3654,7 +3783,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			} catch (e) {
 				errorlog(e);
 			}
-		}, timeout);
+		}, session.waitImageTimeout);
 
 		log("auto playing");
 		if ((iPad || iOS) && navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1 && SafariVersion > 13) { // Modern iOS doesn't need pop up
@@ -3697,29 +3826,50 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		delayedStartupFuncs = [];
 	},50);
 
-	if ((session.effects=="3") || (session.effects=="4") || (session.effects=="5")){
+	if ((session.effect=="3") || (session.effect=="4") || (session.effect=="5")){
 		attemptTFLiteJsFileLoad();
-	} else if (session.effects=="6"){
+	} else if (session.effect=="6"){
 		loadTensorflowJS();
-	} else if (session.effects=="9"){
-		var script = document.createElement('script');
-		script.onload = function() {
-			effectsEngine();
-		}
-		script.src = "./filters/sample.js";
-		document.head.appendChild(script);
+	} else if (session.effect=="9"){
+		session.effect="sample";
+		//loadEffect(session.effect);
 		warnUser("Loading custom effects model...",1000);
-	} else if (session.effects=="10"){
-		var script = document.createElement('script');
-		script.onload = function() {
-			effectsEngine();
-		}
-		script.src = "./filters/cube.js";
-		document.head.appendChild(script);
+	} else if (session.effect=="10"){
+		session.effect="dog";
+		//loadEffect(session.effect);
 		warnUser("Loading custom effects model...",1000);
-	} else if (session.effects=="11"){
-		session.effects="anon";
-		//loadEffect(session.effects);
+	} else if (session.effect=="11"){
+		session.effect="anon";
+		//loadEffect(session.effect);
+		warnUser("Loading custom effects model...",1000);
+	} else if (session.effect=="12"){
+		session.effect="sample";
+		//loadEffect(session.effect);
+		warnUser("Loading custom effects model...",1000);
+	} else if (session.effect=="facetracking"){
+		session.effect="1"; 
+	} else if (session.effect=="zoom"){
+		session.effect="7"; 
+	} 
+
+	if (session.effect === "3"){
+		getById("selectEffectAmount").style.display = "block";
+		getById("selectEffectAmount3").style.display = "block";
+		getById("selectEffectAmountInput").value = session.effectValue;
+		getById("selectEffectAmountInput3").value = session.effectValue;
+	} else if (session.effect === "7"){
+		getById("selectEffectAmount").style.display = "block";
+		getById("selectEffectAmount3").style.display = "block";
+		session.effectValue = 1.0;
+		getById("selectEffectAmountInput").min = 1;
+		getById("selectEffectAmountInput").max = 1.99;
+		getById("selectEffectAmountInput").step = 0.01
+		getById("selectEffectAmountInput3").min = 1;
+		getById("selectEffectAmountInput3").max = 1.99;
+		getById("selectEffectAmountInput3").step = 0.01
+		
+		getById("selectEffectAmountInput").value = session.effectValue;
+		getById("selectEffectAmountInput3").value = session.effectValue;
 	}
 
 	if (location.protocol !== 'https:') {
@@ -3727,8 +3877,6 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			warnUser("SSL (https) is not enabled. This site will not work without it!<br /><br /><a href='https://"+window.location.host+window.location.pathname+window.location.search+"'>Try accessing the site from here instead.</a>", false, false);
 		}
 	}
-	
-	
 	
 	if (session.sensorData) {
 		setupSensorData(parseInt(session.sensorData));
@@ -3743,8 +3891,11 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	if  (urlParams.has('autohide')) {
 		session.autohide=true;
 	}
-	if (session.autohide && !session.mobile && (session.scene===false)){// && (session.roomid!==false)){
-		getById("main").onmouseover = session.showControls;
+	if (session.autohide && (session.scene===false)){// && (session.roomid!==false)){
+		getById("main").onmouseover = showControl; // this is correct. (it's not session.showControls)
+		document.ontouchstart = showControl; // this is correct. (it's not session.showControls)
+		getById("controlButtons").classList.add("zeroHeight");
+		getById("gridlayout").classList.add("nocontrolbar");
 	}
 	
 	if (urlParams.has('flagship')) {
@@ -3999,19 +4150,19 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 					if ("streamID" in session.rpcs[i]) {
 						if ("target" in e.data) {
 							if ((session.rpcs[i].streamID == e.data.target) || (e.data.target == "*")) { // specify a stream ID or let it apply to all videos
-								session.rpcs[i].manualBitrate = e.data.manualBitrate;
+								session.rpcs[i].manualBandwidth = e.data.manualBitrate;
 								session.requestRateLimit(false, i);
 							}
 						} else if (e.data.UUID && (e.data.UUID===i)) {
-							session.rpcs[i].manualBitrate = e.data.manualBitrate;
+							session.rpcs[i].manualBandwidth = e.data.manualBitrate;
 							session.requestRateLimit(false, i);
 						} else if (e.data.streamID) {
 							if (session.rpcs[i].streamID == e.data.streamID) { // specify a stream ID or let it apply to all videos
-								session.rpcs[i].manualBitrate = e.data.manualBitrate
+								session.rpcs[i].manualBandwidth = e.data.manualBitrate
 								session.requestRateLimit(false, i);
 							}
 						} else {
-							session.rpcs[i].manualBitrate = e.data.manualBitrate;
+							session.rpcs[i].manualBandwidth = e.data.manualBitrate;
 							session.requestRateLimit(false, i);
 						}
 					} 
@@ -4102,9 +4253,15 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		}
 		
 		if ("sceneState" in e.data) { // TRUE OR FALSE - tells the connected peers if they are live or not via a tally light change.
-			if (session.obsState.visibility !== e.data.sceneState) { // only move forward if there is a change; the event likes to double fire you see.
-				session.obsStateSync();
-			}
+			var msg = {};
+			msg.obsState = {};
+			msg.obsState.visibility = e.data.sceneState || false;
+			msg.obsState.recording = e.data.sceneState || false;
+			session.sendRequest(msg);
+		}
+		
+		if ("layouts" in e.data) {
+			session.layouts = e.data.layouts;
 		}
 		
 		if ("sendMessage" in e.data) { // webrtc send to viewers
@@ -4139,78 +4296,92 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 		if ("reload" in e.data) { // reload the page
 			reloadRequested(); // location.reload();, but with no user prompt (force reload)
 		}
-
-		if ("getStats" in e.data) {
-
-			var stats = {};
-			stats.total_outbound_connections = Object.keys(session.pcs).length;
-			stats.total_inbound_connections = Object.keys(session.rpcs).length;
-			stats.inbound_stats = {};
-			for (var i in session.rpcs) {
-				stats.inbound_stats[session.rpcs[i].streamID] = session.rpcs[i].stats;
+		
+		if ("getFaces" in e.data){
+			if (e.data.faceTrack){
+				session.grabFaceData = true;
+				getFaces();
+			} else {
+				session.grabFaceData = false;
 			}
+		}
 
-			for (var uuid in session.pcs) {
-				setTimeout(function(UUID) {
-					session.pcs[UUID].getStats().then(function(stats) {
-						stats.forEach(stat => {
-							if (stat.type == "outbound-rtp") {
-								if (stat.kind == "video") {
+		if (("getStats" in e.data)){
+			var stats = {};
+			try {
+				stats.inbound_stats = {};
+				stats.total_outbound_connections = Object.keys(session.pcs).length;
+				stats.total_inbound_connections = Object.keys(session.rpcs).length;
+				for (var i in session.rpcs) {
+					stats.inbound_stats[session.rpcs[i].streamID] = session.rpcs[i].stats;
+					console.log(stats);
+				}
+				for (var uuid in session.pcs) {
+					setTimeout(function(UUID) {
+						session.pcs[UUID].getStats().then(function(stats) {
+							stats.forEach(stat => {
+								if (stat.type == "outbound-rtp") {
+									if (stat.kind == "video") {
 
-									if ("qualityLimitationReason" in stat) {
+										if ("qualityLimitationReason" in stat) {
 
-										session.pcs[UUID].stats.quality_limitation_reason = stat.qualityLimitationReason;
+											session.pcs[UUID].stats.quality_limitation_reason = stat.qualityLimitationReason;
+										}
+										if ("framesPerSecond" in stat) {
+											session.pcs[UUID].stats.resolution = stat.frameWidth + " x " + stat.frameHeight + " @ " + stat.framesPerSecond;
+										}
+										if ("encoderImplementation" in stat) {
+											session.pcs[UUID].stats.encoder = stat.encoderImplementation;
+										}
 									}
-									if ("framesPerSecond" in stat) {
-										session.pcs[UUID].stats.resolution = stat.frameWidth + " x " + stat.frameHeight + " @ " + stat.framesPerSecond;
+								} else if (stat.type == "remote-candidate") {
+									if ("relayProtocol" in stat) {
+										if ("ip" in stat) {
+											session.pcs[UUID].stats.remote_relay_IP = stat.ip;
+										}
+										session.pcs[UUID].stats.remote_relayProtocol = stat.relayProtocol;
 									}
-									if ("encoderImplementation" in stat) {
-										session.pcs[UUID].stats.encoder = stat.encoderImplementation;
+									if ("candidateType" in stat) {
+										session.pcs[UUID].stats.remote_candidateType = stat.candidateType;
 									}
-								}
-							} else if (stat.type == "remote-candidate") {
-								if ("relayProtocol" in stat) {
-									if ("ip" in stat) {
-										session.pcs[UUID].stats.remote_relay_IP = stat.ip;
+								} else if (stat.type == "local-candidate") {
+									if ("relayProtocol" in stat) {
+										if ("ip" in stat) {
+											session.pcs[UUID].stats.local_relayIP = stat.ip;
+										}
+										session.pcs[UUID].stats.local_relayProtocol = stat.relayProtocol;
 									}
-									session.pcs[UUID].stats.remote_relayProtocol = stat.relayProtocol;
-								}
-								if ("candidateType" in stat) {
-									session.pcs[UUID].stats.remote_candidateType = stat.candidateType;
-								}
-							} else if (stat.type == "local-candidate") {
-								if ("relayProtocol" in stat) {
-									if ("ip" in stat) {
-										session.pcs[UUID].stats.local_relayIP = stat.ip;
+									if ("candidateType" in stat) {
+										session.pcs[UUID].stats.local_candidateType = stat.candidateType;
 									}
-									session.pcs[UUID].stats.local_relayProtocol = stat.relayProtocol;
-								}
-								if ("candidateType" in stat) {
-									session.pcs[UUID].stats.local_candidateType = stat.candidateType;
-								}
-							} else if ((stat.type == "candidate-pair" ) && (stat.nominated)) {
-								
-								if ("availableOutgoingBitrate" in stat){
-									session.pcs[UUID].stats.available_outgoing_bitrate_kbps = parseInt(stat.availableOutgoingBitrate/1024);
-								}
-								if ("totalRoundTripTime" in stat){
-									if ("responsesReceived" in stat){
-										session.pcs[UUID].stats.average_roundTripTime_ms = parseInt((stat.totalRoundTripTime/stat.responsesReceived)*1000);
-									} 
+								} else if ((stat.type == "candidate-pair" ) && (stat.nominated)) {
 									
+									if ("availableOutgoingBitrate" in stat){
+										session.pcs[UUID].stats.available_outgoing_bitrate_kbps = parseInt(stat.availableOutgoingBitrate/1024);
+									}
+									if ("totalRoundTripTime" in stat){
+										if ("responsesReceived" in stat){
+											session.pcs[UUID].stats.average_roundTripTime_ms = parseInt((stat.totalRoundTripTime/stat.responsesReceived)*1000);
+										} 
+										
+									}
 								}
-							}
+								return;
+							});
 							return;
 						});
-						return;
-					});
-				}, 0, uuid);
+					}, 0, uuid);
+				}
+			} catch(e){
+				// disconnected probably
 			}
 			setTimeout(function() {
 				stats.outbound_stats = {};
-				for (var i in session.pcs) {
-					stats.outbound_stats[i] = session.pcs[i].stats;
-				}
+				try {
+					for (var i in session.pcs) {
+						stats.outbound_stats[i] = session.pcs[i].stats;
+					}
+				} catch(e){}
 				parent.postMessage({
 					"stats": stats
 				}, session.iframetarget);
@@ -4359,13 +4530,6 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			}
 		}
 		
-		if ("previewMode" in e.data){
-			if ("layout" in e.data){
-				session.layout = e.data.layout;
-			}
-			switchModes(e.data.previewMode);
-		} 
-		
 		if ("advancedMode" in e.data){
 			if (e.data.advancedMode){
 				document.documentElement.style.setProperty('--advanced-mode', "inline-block"); // show advanced items
@@ -4381,14 +4545,38 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 			} // don't use if the stream is in your room (as not needed)
 		}  // you can load a stream ID from inside a room that exists outside any room
 		
-		if (("scene" in e.data) && ("layout" in e.data)){
+		if ("previewMode" in e.data){
+			if ("layout" in e.data){
+				session.layout = e.data.layout;
+				pokeIframeAPI("layout-updated", session.layout);
+			}
+			switchModes(e.data.previewMode);
+		}  else if ("layout" in e.data){
 			warnlog("changing layout request via IFRAME API");
-			issueLayout(e.data.layout, e.data.scene);
+			session.layout = e.data.layout;
+			pokeIframeAPI("layout-updated", session.layout);
 			if (session.director){
-				session.layout = e.data.layout; // not sure this is ideal, but whatever.
-				updateMixer();
+				if ("scene" in e.data){
+					if ("UUID" in e.data){
+						issueLayout(e.data.layout, e.data.scene, e.data.UUID);
+					} else {
+						issueLayout(e.data.layout, e.data.scene);
+					}
+				} else if ("UUID" in e.data){
+					issueLayout(e.data.layout, false, e.data.UUID);
+				}
+			}
+			updateMixer();
+		}
+		
+		if ("slotmode" in e.data){
+			if (session.slotmode){
+				session.slotmode = parseInt(e.data.slotmode);
+			} else {
+				session.slotmode = false;
 			}
 		}
+		
 		////////////  manual scale. Request a specific down-scaled resolution from a remote connection
 		var targetWidth = false;
 		var targetHeight = false;
@@ -4479,9 +4667,16 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 											session.rpcs[i].videoElement.parentNode.parentNode.removeChild(session.rpcs[i].videoElement.parentNode);
 										} catch (e) {}
 									}
+								} else if ("replace" in e.data) { // should allow for a cleaner cut between two video streams.
+									try {
+										getById("gridlayout").appendChild(session.rpcs[i].videoElement);
+										getById("gridlayout").childNodes.forEach(ele=>{
+											if ((!ele.id) || (ele.id !== session.rpcs[i].videoElement.id)){
+												getById("gridlayout").removeChild(ele);
+											}
+										});
+									} catch(e){}
 								}  
-								
-								// video and audio bitrate handled else where
 							} catch (e) {
 								errorlog(e);
 							}
@@ -4653,8 +4848,15 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 				return;
 			}
 				
-			log("Connection type changed from " + session.stats.network_type + " to " + Connection.effectiveType);
-			session.stats.network_type = Connection.effectiveType + " / " + Connection.type;
+			log("Connection type changed from " + session.stats.network_type + " to " + Connection.type);
+			
+			if (session.stats.network_type && (session.stats.network_type !== Connection.type)){
+				var miniInfo = {};
+				miniInfo.con = Connection.type;
+				session.sendMessage({"miniInfo":miniInfo});
+			}
+			
+			session.stats.network_type = Connection.type;
 			session.ping();
 			
 		} catch(e){warnlog(e);};
@@ -4663,7 +4865,7 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 	try {
 		var Connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 		if (Connection){
-			session.stats.network_type = Connection.effectiveType + " / " + Connection.type;
+			session.stats.network_type = Connection.type
 			Connection.addEventListener('change', updateConnectionStatus);
 		}
 	} catch (e) {log(e);} // effectiveType is not yet supported by Firefox or Safari; 2021
@@ -4947,6 +5149,15 @@ async function main(){ // main asyncronous thread; mostly initializes the user s
 					return;
 				} else if (event.keyCode == 83) { // S
 					toggleScreenShare()();
+					event.preventDefault(); 
+					event.stopPropagation();
+					return;
+				} else if (event.keyCode == 68) { // S
+					if (!drawOnScreenObject){
+						drawOnScreen();
+					} else {
+						drawOnScreenObject.stop();
+					}
 					event.preventDefault(); 
 					event.stopPropagation();
 					return;

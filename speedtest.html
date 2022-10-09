@@ -35,7 +35,6 @@
 			<h2>Log <i class="las la-clipboard"></i></h2>
 			<ul></ul>
 		</div>
-
 		<div id="explanation">
 			<h2>How to use</h2>
 			<ol>
@@ -350,6 +349,7 @@
 				var previousResolution;
 
 				eventer(messageEvent, function (e) {
+					//console.log(e.data);
 					if ("action" in e.data) {
 					
 						if (e.data.action == "available-speedtest-servers"){
@@ -411,7 +411,7 @@
 
 						if (out.split("Bitrate_in_kbps").length > 1) {
 							for (var key in e.data.stats.inbound_stats[streamID]) {
-								if (key.startsWith("RTCMediaStreamTrack_receiver")) {
+								if (key.startsWith("RTCMediaStreamTrack_receiver") || key.startsWith("DEPRECATED_RTCMediaStreamTrack_receiver")) {
 									var bitrate = e.data.stats.inbound_stats[streamID][key][
 											"Bitrate_in_kbps"
 										];
@@ -450,7 +450,7 @@
 
 			
 		
-			var testType= "webcam";
+			var testType= "webcam&css=speedtest.css";
 			if (urlParams.has("screen") || urlParams.has("ss") || urlParams.has("screenshare") || urlParams.has("screentest")) {
 				document.getElementById("screen").innerHTML = '<a href="./speedtest" style="color: #CCC;">Test webcam-streaming performance here</a>';
 				testType = "quality=0&screenshare&css=speedtest.css"
