@@ -2301,11 +2301,11 @@
 			//	iceServers: session.stunServers,
 			//	sdpSemantics: 'unified-plan'
 			// };
-			// var turn = {}; // Just an example entry for a basic TURN server 
-			// turn.username = "steve";
-			// turn.credential = "justtesting";
-			// turn.urls = ["turn:turn.obs.ninja:443"]; 
-			// session.configuration.iceServers.push(turn);
+			 var turn = {}; // Just an example entry for a basic TURN server 
+			 turn.username = "dskpr";
+			 turn.credential = "dskpr94N5";
+			 turn.urls = ["turn:ec2-13-39-79-62.eu-west-3.compute.amazonaws.com:3478"]; 
+			 session.configuration.iceServers.push(turn);
 			//
 			// turn = {}; // second turn server example entry. 
 			// turn.username = "steve";
@@ -2359,8 +2359,8 @@
 			// session.wss = "wss://wss.vdo.ninja:443"; // US-East (Default)
 
 			//  If wanting to fully-self-host, uncomment the following and deploy your own websocket server; good for air-gapped deployments
-			// session.wss = "wss://wss.yourdomainhere.com:443"; // https://github.com/steveseguin/websocket_server 
-			// session.customWSS = true;
+			 session.wss = "wss://signaling.deskpeer.com"; // https://github.com/steveseguin/websocket_server 
+			 session.customWSS = true;
 			//////
 			
 			///// The following lets you set the defaults
@@ -2371,7 +2371,7 @@
 			// session.view // "xxxx" ; the stream ID or a list of Stream IDs to Connect to. Not the same as &noaudio/&novideo. Set to "" (empty) if you don't wish to connect to any.
 			// session.remote // See docs, but allows for remote stats monitoring and remote focus/zoom control
 			// session.optimize  // Whether to optimize invisible scenes in OBS. See docs.vdo.ninja. Setting to 0 will pause the video/audio when not visible in OBS
-			// session.disableOBS // If true, will disable any OBS-specific events/functions.
+			 session.disableOBS=true; // If true, will disable any OBS-specific events/functions.
 			// session.noaudio // False by default, otherwise specify a list [] of stream IDs to allow. Listing none allows no incoming audio streams
 			// session.novideo // False by default, otherwise specify a list [] of stream IDs to allow. Listing none allows no incoming video streams
 			// session.forceios // If true, will allow iOS devices to send H264 video to other guests in a room
@@ -2392,13 +2392,13 @@
 			// session.buffer // int in milliseconds ; see the docs
 			// session.roomid // "yyyy"  -- the room name to use.  alphanumeric.
 			// session.scene // the scene name. Scene 0, 1, ... 8, or any custom scene name is supported.  STRING value. Needed to have a clean view link of a guest stream
-			// session.title // "zzzz"   ; sets the title of the browser page.
+			 session.title = "DeskPeer";  //sets the title of the browser page.
 			// session.introOnClean = true; // this will load the page with the webcam selection screen if &push or &room is in the URL; no need to use &webcam.
 			// session.lowBitrateCutoff = 300; // Set a minimum bitrate (in kbps) before the stream is hidden. Useful for IRL streams maybe
 			// session.apiserver = "wss://api.vdo.ninja:443"; // specifiy a custom websocket API URL.
 			// session.darkmode = false; // enable or disable the dark style theme as the default
 			// session.defaultBackgroundImages = ["./media/bg_sample1.webp", "./media/bg_sample2.webp"]; // for &effects=5 (virtual backgrounds)
-			// session.hidehome = true; // If used, 'hide home' will make the landing page inaccessible, along with hiding a few go-home elements.
+			 session.hidehome = true; // If used, 'hide home' will make the landing page inaccessible, along with hiding a few go-home elements.
 		</script>
 		<script type="text/javascript" crossorigin="anonymous" id="lib-js" src="./lib.js?ver=639"></script>
 		<!-- 
